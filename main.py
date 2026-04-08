@@ -1,51 +1,83 @@
 import os
+from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from llm_client import chat
 
-def load_profile(filepath: str = "profile.md") -> str:
-    """
-    读取本地的人设文件
-    """
-    default_prompt = "你是一个有帮助的AI助手。"
-    
+def load_txt(filepath: str) -> str:
+    """通用的文本文件读取器"""
     if not os.path.exists(filepath):
-        print(f"\n[提示] 未找到 {filepath}。")
-        print(f"       请复制 profile.md.example 并重命名为 profile.md，然后填入你的真实信息。")
-        print(f"       当前将使用默认人设启动...\n")
-        return default_prompt
-    
+        return ""
     with open(filepath, "r", encoding="utf-8") as f:
         return f.read()
 
+def load_prompts_from_dir(dir_path: str) -> str:
+    """
+    自动扫描目录下所有 .md 文件并拼接
+    约定：通过文件名前缀的数字控制加载顺序（如 01_xxx.md, 02_yyy.md）
+    """
+    if not os.path.exists(dir_path):
+        return ""
+    
+    # 找出目录下所有 .md 文件
+    md_files = [f for f in os.listdir(dir_path) if f.endswith('.md')]
+    
+    # 按文件名自然排序（这样 01_ 会排在 02_ 前面）
+    md_files.sort()
+    
+    prompts = []
+    for filename in md_files:
+        filepath = os.path.join(dir_path, filename)
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if content:  # 跳过空文件
+                prompts.append(content)
+                
+    return "\n\n".join(prompts)
 
 def main():
-    # 1. 加载人设
-    print("正在加载人设...")
-    system_prompt = load_profile()
-    print("✅ 私人助理已启动！(输入 'quit' 退出)\n")
+    print("正在加载配置...")
+    
+    # 1. 加载基础人设
+    raw_profile = load_txt("profile.md")
+    
+    # 2. 自动加载 prompts 目录下的所有系统规则
+    system_rules = load_prompts_from_dir("prompts")
+    
+    # 3. 拼装最终 Prompt（人设在前，系统硬规则在后，保证规则优先级）
+    system_prompt = raw_profile + "\n\n" + system_rules if system_rules else raw_profile
+    
+    if not raw_profile:
+        print("       [提示] 未找到 profile.md，请参考 profile.md.example 配置。")
+    print(f"✅ {AGENT_NAME} 已启动！(输入 'quit' 退出)\n")
     print("-" * 40)
 
-    # 2. 主循环
+    chat_history = []
+
     while True:
         try:
-            # 获取用户输入
             user_input = input("\n👤 你: ")
             
-            # 退出逻辑
             if user_input.strip().lower() in ['quit', 'exit', 'q']:
-                print("助理: 好的，随时待命！")
+                print(f"{AGENT_NAME}: 好的，随时待命！")
                 break
             
             if not user_input.strip():
                 continue
             
-            # 调用模型 (注意这里没有 print 换行，让输出更紧凑)
-            print("🤖 助理: ", end="", flush=True)
-            response = chat(system_prompt, user_input)
+            chat_history.append({"role": "user", "content": user_input})
+            messages_to_send = [{"role": "system", "content": system_prompt}] + chat_history
+            
+            print(f"🤖 {AGENT_NAME}: ", end="", flush=True)
+            response = chat(messages_to_send)
             print(response)
             
+            chat_history.append({"role": "assistant", "content": response})
+            
+            max_messages = MAX_HISTORY_ROUNDS * 2
+            if len(chat_history) > max_messages:
+                chat_history = chat_history[-max_messages:]
+                
         except KeyboardInterrupt:
-            # 捕获 Ctrl+C，优雅退出
-            print("\n\n助理: 检测到中断，正在退出...")
+            print(f"\n\n{AGENT_NAME}: 检测到中断，正在退出...")
             break
 
 if __name__ == "__main__":

@@ -12,7 +12,8 @@
 
 ``` text
 my_agent/
-├── .gitignore # Git 忽略规则（拦截 .env 和 profile.md）
+├── prompts/
+│   └── 01_base_rules.md   # 🆕 框架级系统规则
 ├── .env.example # 环境变量模板
 ├── profile.md.example # 人设配置模板
 ├── requirements.txt # Python 依赖清单
@@ -58,7 +59,7 @@ python main.py
 
 - [x] **M1: 能认识你的 CLI** (当前阶段)
   - [x] 搭架子与人设注入
-  - [ ] 加上短期记忆
+  - [x] 加上短期记忆
 - [ ] **M2: 赋予它双手** (代码解释器沙箱)
 - [ ] **M3: 核心引擎** (ReAct 循环与安全带)
 - [ ] **M4: 接入真实世界** (联网搜索)
