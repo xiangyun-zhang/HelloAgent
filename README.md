@@ -13,7 +13,10 @@
 ``` text
 my_agent/
 ├── prompts/
-│   └── 01_base_rules.md   # 🆕 框架级系统规则
+│   └── 01_base_rules.md   # 框架级系统规则
+sandbox/  # 运行沙箱
+├── workspace/
+│   └── .gitkeep
 ├── .env.example # 环境变量模板
 ├── profile.md.example # 人设配置模板
 ├── requirements.txt # Python 依赖清单
