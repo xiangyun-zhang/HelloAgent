@@ -50,7 +50,8 @@ API_KEY, _ = _get_config("AGENT_API_KEY", required=True)
 BASE_URL, base_used_example = _get_config("AGENT_BASE_URL")
 MODEL_NAME, model_used_example = _get_config("AGENT_MODEL")
 AGENT_NAME, name_used_example = _get_config("AGENT_NAME")
-MAX_HISTORY_ROUNDS, max_history_rounds_example = _get_config("MAX_HISTORY_ROUNDS")
+max_history_rounds, max_history_rounds_example = _get_config("MAX_HISTORY_ROUNDS")
+MAX_HISTORY_ROUNDS = int(max_history_rounds) if max_history_rounds else 10
 
 # ==========================================
 # 友好提示：哪些配置使用了默认值
