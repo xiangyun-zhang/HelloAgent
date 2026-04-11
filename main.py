@@ -95,28 +95,51 @@ def main():
 
                     print(f"\n⚙️  [系统] 检测到 {len(code_blocks)} 个代码执行请求，正在沙箱运行...")
 
-                    results = []
+                    execution_results = []
                     for i, code in enumerate(code_blocks, 1):
-                        print(f"   ▶ 执行中 ({i}/{len(code_blocks)})...", end="", flush=True)
+                        print(f" ▶ 执行中 ({i}/{len(code_blocks)})...", end="", flush=True)
                         result = run_python_code(code.strip())
-                        results.append(f"[执行结果 #{i}]\n{result}")
-                        print(" ✅")
+                        execution_results.append(result)
+                        if "[Error]" in result:
+                            print(" ❌")
+                        else:
+                            print(" ✅")
 
-                    full_results = "\n\n".join(results)
+                    full_results = ""
+                    has_error = False
+                    for i, res in enumerate(execution_results):
+                        if "[Error]" in res:
+                            has_error = True
+                            full_results += f"[执行结果 #{i+1}]\n❌ {res}\n"
+                        else:
+                            output = res.strip()
+                            if output == "代码执行成功，但没有任何输出。":
+                                full_results += f"[执行结果 #{i+1}]\n（代码执行成功，但没有任何输出）\n"
+                            else:
+                                full_results += f"[执行结果 #{i+1}]\n{output}\n"
+
+
                     print(f"\n📋 执行结果:\n{full_results}\n")
-
+                    
                     # 把"思考过程"和"执行结果"都存入历史
                     chat_history.append({"role": "assistant", "content": response})
-                    chat_history.append({
-                        "role": "user",
-                        "content": (
+                    
+                    if has_error:
+                        feedback_msg = (
+                            f"代码执行出错，返回结果如下：\n"
+                            f"{full_results}\n\n"
+                            f"请分析错误原因，修正代码后重新执行。"
+                            f"如果错误无法通过修改代码解决，再用自然语言解释。"
+                        )
+                    else:
+                        feedback_msg = (
                             f"代码已在沙箱中执行完毕，返回结果如下：\n"
                             f"{full_results}\n\n"
                             f"请根据以上结果，用自然语言回答用户的原始问题。"
                             f"不要再次输出代码块，也不要复述执行结果，直接用自然语言回答。"
-
                         )
-                    })
+
+                    chat_history.append({"role": "user", "content": feedback_msg})
 
                     tool_iteration += 1
                     continue
