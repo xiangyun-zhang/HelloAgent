@@ -1,8 +1,9 @@
 import os
 import re
+
 from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from llm_client import chat
-from sandbox.executor import run_python_code
+from tools import PythonTool, ToolRegistry
 
 MAX_TOOL_ITERATIONS = 5  # 防止 Agent 陷入无限调用循环
 
@@ -37,12 +38,6 @@ def load_prompts_from_dir(dir_path: str) -> str:
     return "\n\n".join(prompts)
 
 
-def extract_code_blocks(response: str) -> list:
-    """从 LLM 回复中提取 ```run_python 代码块"""
-    pattern = r"```run_python\s*\n(.*?)```"
-    return re.findall(pattern, response, re.DOTALL)
-
-
 def main():
     print("正在加载配置...")
 
@@ -57,6 +52,9 @@ def main():
     print("-" * 40)
 
     chat_history = []
+
+    registry = ToolRegistry()
+    registry.register(PythonTool())
 
     while True:
         try:
@@ -83,41 +81,15 @@ def main():
                 response = chat(messages_to_send)
 
                 # 检测回复中是否包含工具调用
-                code_blocks = extract_code_blocks(response)
-
-                if code_blocks:
-                    # --------------------------------------------------
-                    # 中间响应：Agent 想要执行代码
-                    # 展示思考过程，执行代码，把结果喂回去让它解读
-                    # --------------------------------------------------
+                if registry.needs_to_run(response):
                     print(f"\n🤖 {AGENT_NAME} (思考中):", flush=True)
                     print(response)
 
-                    print(f"\n⚙️  [系统] 检测到 {len(code_blocks)} 个代码执行请求，正在沙箱运行...")
+                    trigger_count = sum(1 for name in registry._tools if f"```{name}" in response)
+                    print(f"\n⚙️  [系统] 检测到 {trigger_count} 个工具执行请求，正在沙箱运行...")
 
-                    execution_results = []
-                    for i, code in enumerate(code_blocks, 1):
-                        print(f" ▶ 执行中 ({i}/{len(code_blocks)})...", end="", flush=True)
-                        result = run_python_code(code.strip())
-                        execution_results.append(result)
-                        if "[Error]" in result:
-                            print(" ❌")
-                        else:
-                            print(" ✅")
-
-                    full_results = ""
-                    has_error = False
-                    for i, res in enumerate(execution_results):
-                        if "[Error]" in res:
-                            has_error = True
-                            full_results += f"[执行结果 #{i+1}]\n❌ {res}\n"
-                        else:
-                            output = res.strip()
-                            if output == "代码执行成功，但没有任何输出。":
-                                full_results += f"[执行结果 #{i+1}]\n（代码执行成功，但没有任何输出）\n"
-                            else:
-                                full_results += f"[执行结果 #{i+1}]\n{output}\n"
-
+                    full_results = registry.run(response)
+                    has_error = "[Error]" in full_results
 
                     print(f"\n📋 执行结果:\n{full_results}\n")
                     
