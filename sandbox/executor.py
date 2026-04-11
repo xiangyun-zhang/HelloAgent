@@ -6,6 +6,74 @@ import uuid
 
 WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "workspace")
 
+def _check_unsafe_ast(code: str) -> str | None:
+    """
+    使用 AST 静态分析检查代码是否包含危险操作。
+    如果安全返回 None，如果危险返回拦截原因字符串。
+    """
+    # 1. 定义黑名单
+    UNSAFE_SIMPLE = {"eval", "exec", "__import__", "compile"}
+    
+    UNSAFE_ATTRS = {
+        "os.system", "os.popen", "os.remove", "os.unlink", "os.mkdir", "os.rmdir",
+        "shutil.rmtree", "shutil.copy", "shutil.move",
+        "subprocess.Popen", "subprocess.run", "subprocess.call", "subprocess.check_output",
+        "sys.exit",
+        "pathlib.Path.unlink", "pathlib.Path.write_text", "pathlib.Path.write_bytes",
+    }
+
+    # 解析 AST 树，如果连语法都没过，直接放行（让后面的执行器去报语法错误）
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+
+    def get_attr_path(node) -> str | None:
+        """递归提取属性的完整路径，例如把 os.system 变成 'os.system' 字符串"""
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Attribute):
+            value_path = get_attr_path(node.value)
+            if value_path:
+                return f"{value_path}.{node.attr}"
+        return None
+
+    # 2. 遍历 AST 树寻找危险分子
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+            
+        func_path = get_attr_path(node.func)
+
+        # 检查 A：简单危险内置函数
+        if isinstance(node.func, ast.Name) and node.func.id in UNSAFE_SIMPLE:
+            return f"禁止调用危险内置函数: {node.func.id}"
+
+        # 检查 B：危险模块方法 (如 os.system)
+        if func_path and func_path in UNSAFE_ATTRS:
+            return f"禁止调用危险模块方法: {func_path}"
+
+        # 检查 C：拦截文件写入
+        if isinstance(node.func, ast.Name) and node.func.id == "open":
+            mode = None
+            
+            # 看位置参数 (第2个参数)
+            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+                mode = node.args[1].value
+            # 看关键字参数
+            else:
+                for kw in node.keywords:
+                    if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+                        mode = kw.value.value
+                        break
+            
+            # 判断 mode 里有没有写权限 ('w', 'a', 'x' 等)
+            if isinstance(mode, str) and any(m in mode for m in ['w', 'a', 'x']):
+                return f"禁止使用 open() 进行文件写入/追加操作 (检测到 mode='{mode}')"
+
+    # 3. 全部放行
+    return None
+
 
 def _auto_print_last_expr(code: str) -> str:
     """
@@ -43,6 +111,11 @@ def run_python_code(code: str, timeout: int = 10) -> str:
     :param timeout: 最大执行时间（秒），防止死循环
     :return: 执行结果或错误信息
     """
+    # 安检门：AST 静默拦截
+    block_reason = _check_unsafe_ast(code)
+    if block_reason:
+        return f"[Error] 代码安全拦截：{block_reason}，执行已取消。"
+    
     os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
     # 预处理：自动补全裸表达式的 print
