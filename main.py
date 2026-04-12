@@ -4,6 +4,7 @@ import uuid
 from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from database import init_db, save_message, get_history_list, clear_all_history, load_global_recent_messages
 from llm_client import chat
+from memory import MemoryManager
 from sandbox.executor import Sandbox
 from tools import PythonTool, ToolRegistry
 
@@ -52,7 +53,7 @@ def main():
     system_prompt = (raw_profile + "\n\n" + system_rules) if system_rules else raw_profile
 
     if not raw_profile:
-        print("       [提示] 未找到 profile.md，请参考 profile.md.example 配置。")
+        print(" [提示] 未找到 profile.md，请参考 profile.md.example 配置。")
     print(f"\033[32m✅ {AGENT_NAME} 已启动！(输入 'quit' 退出)\033[0m\n")
     print("-" * 40)
 
@@ -63,6 +64,9 @@ def main():
         chat_history.extend(history)
         print(f"\n📂 已恢复了 {len(history)} 条历史记录。")
 
+    history_baseline = len(history)  # 记录启动时的历史长度，作为记忆提取的起点
+
+    memory_manager = MemoryManager()
     registry = ToolRegistry()
     registry.register(PythonTool())
 
@@ -71,13 +75,14 @@ def main():
             user_input = input("\n👤 你: ").strip()
 
             if user_input.lower() in ['quit', 'exit', 'q']:
+                memory_manager.consolidate(chat_history[history_baseline:])
                 print(f"{AGENT_NAME}: 好的，随时待命！")
                 break
 
             if user_input.lower() == "/history":
                 print("\n📜 近期会话记录：")
                 for record in get_history_list(limit=MAX_HISTORY_ROUNDS // 2):
-                    print(f"  - {record}")
+                    print(f" - {record}")
                 continue
 
             if user_input.lower() == "/clear":
@@ -94,7 +99,6 @@ def main():
                 else:
                     print("\n已取消。")
                 continue
-
 
             if not user_input:
                 continue
@@ -122,17 +126,18 @@ def main():
                     print(f"\n🤖 {AGENT_NAME} (思考中):", flush=True)
                     print(response)
 
-                    trigger_count = response.count(f"```run_python") + response.count(f"```python")
-                    print(f"\n⚙️  [系统] 检测到 {trigger_count} 个工具执行请求，正在沙箱运行...")
+                    trigger_count = response.count("```run_python") + response.count("```python")
+                    print(f"\n⚙️ [系统] 检测到 {trigger_count} 个工具执行请求，正在沙箱运行...")
 
                     full_results = registry.run(response)
                     has_error = "[Error]" in full_results
 
                     print(f"\n📋 执行结果:\n{full_results}\n")
-                    
-                    # 把"思考过程"和"执行结果"都存入历史
+
+                    # 把思考过程存入历史（这里存的是 response，不是 final_answer）
                     chat_history.append({"role": "assistant", "content": response})
-                    
+                    save_message(session_id, "assistant", response)
+
                     if has_error:
                         feedback_msg = (
                             f"代码执行出错，返回结果如下：\n"
@@ -169,7 +174,11 @@ def main():
                 save_message(session_id, "assistant", final_answer)
 
             elif tool_iteration >= MAX_TOOL_ITERATIONS:
-                print(f"\n⚠️  [系统] {AGENT_NAME} 连续调用了 {MAX_TOOL_ITERATIONS} 次工具仍未得出结论，已强制停止。")
+                print(f"\n⚠️ [系统] {AGENT_NAME} 连续调用了 {MAX_TOOL_ITERATIONS} 次工具仍未得出结论，已强制停止。")
+
+            # 记忆沉淀：放在最终响应之后，不在工具循环里面
+            if len(chat_history) % 20 == 0:
+                memory_manager.consolidate(chat_history[history_baseline:])
 
             # 对话历史裁剪（保留恢复的历史 + 当前会话的最近几轮）
             # 如果有恢复历史（10条），至少保留 10 + 当前 10 轮

@@ -2,7 +2,7 @@
 
 一个基于大模型 API 构建的本地私人助理。拒绝数据上传云端，绝对的数据隐私与控制权。
 
-## ✨ 当前特性 (Milestone 4.5)
+## ✨ 当前特性 (Milestone 5.2)
 - **人设注入**：通过本地 `profile.md` 文件自定义助理性格与背景知识。
 - **敏感信息隔离**：使用 `.env` 管理 API Key，结合 `.example` 模板，确保隐私数据不进 Git 仓库。
 - **持久化代码沙箱**：基于 `exec` 的 Jupyter 式沙箱，跨多次执行保持变量状态，彻底解决代码拆分导致的变量丢失问题。
@@ -18,24 +18,26 @@
 
 ```text
 my_agent/
-├── data/                   # 持久化数据目录（SQLite 数据库等）
+├── data/                    # 持久化数据目录（SQLite 数据库、ChromaDB 向量库等）
 │   └── .gitkeep
 ├── prompts/
-│   ├── 01_base_rules.md    # 框架级系统规则
-│   └── 02_tool_rules.md    # 工具调用与 ReAct 规则
+│   ├── 01_base_rules.md     # 框架级系统规则
+│   ├── 02_tool_rules.md     # 工具调用与 ReAct 规则
+│   └── 03_memory_extract.md # 记忆提取规则（防幻觉、防复述）
 ├── sandbox/
-│   ├── executor.py         # 代码执行器（持久化沙箱 + subprocess 备用）
-│   └── workspace/          # 沙箱工作目录（文件读写在此）
+│   ├── executor.py          # 代码执行器（持久化沙箱 + subprocess 备用）
+│   └── workspace/           # 沙箱工作目录（文件读写在此）
 │       └── .gitkeep
-├── .env.example            # 环境变量模板
-├── database.py             # 数据库操作层（建表、存取、会话管理）
-├── config.py               # 配置加载与校验逻辑
-├── llm_client.py           # 大模型 API 通信封装
-├── main.py                 # 程序主入口（命令行交互循环）
-├── profile.md.example      # 人设配置模板
-├── requirements.txt        # Python 依赖清单
-├── tools.py                # 工具基类、注册表与 Python 执行工具
-└── README.md               # 你正在看的这个文件
+├── .env.example             # 环境变量模板
+├── config.py                # 配置加载与校验逻辑
+├── database.py              # 短期记忆：SQLite 数据库操作层（建表、存取、会话管理）
+├── llm_client.py            # 大模型 API 通信封装（含对话与 Embedding 接口）
+├── main.py                  # 程序主入口（命令行交互循环）
+├── memory.py                # 长期记忆：向量库存取与语义检索逻辑
+├── profile.md.example       # 人设配置模板
+├── requirements.txt         # Python 依赖清单
+├── tools.py                 # 工具基类、注册表与 Python 执行工具
+└── README.md                # 你正在看的这个文件
 ```
 
 ## 🚀 快速开始
@@ -85,7 +87,7 @@ python main.py
 - [x] **M2: 赋予它双手**（代码解释器沙箱）
   - [x] 写安全沙箱执行器
   - [x] 沙箱接入大模型
-- [x] **M3: 核心引擎**（ReAct 循环与安全带）⚡ 当前阶段
+- [x] **M3: 核心引擎**（ReAct 循环与安全带）
   - [x] 实现 ReAct 循环 & 错误自愈机制
   - [x] 加上安全带（AST 自动扫描拦截危险代码）
   - [x] 工具注册表抽象（为 M4 做准备）
@@ -98,9 +100,11 @@ python main.py
   - [x] 4.5.1：写底层 database.py（建表、存取逻辑）
   - [x] 4.5.2：启动时加载历史、每次对话后保存、增加 /history 指令
   - [x] 4.5.3：增加 /clear、/clearall 指令与跨会话全局记忆加载优化
-- [ ] **M5: 长期记忆升级**（向量数据库）
-  - [ ] 引入向量库与 Embedding —— 明确选本地模型还是 API，写存取函数
-  - [ ] 记忆提取与语义检索 —— 对话完自动提炼事实存入，提问时按需检索。
+- [ ] **M5: 长期记忆升级**（向量数据库 RAG）⏳ 当前阶段
+  - [x] 5.1：引入 ChromaDB 与智谱 Embedding API，新建 memory.py 封装存取逻辑
+  - [x] 5.2：实现 LLM 驱动的记忆提取机制（每 10 轮对话 + 退出时触发，严格防幻觉）
+  - [ ] 5.3：实现提问时的语义检索，将相关记忆动态注入 System Prompt
+  - [ ] 5.4：记忆去重机制（相似度 > 0.9 跳过写入）与 /memory 管理指令
 - [ ] **M6: 工程化收尾**（Web UI包装）
   - [ ] 用 Gradio 替换命令行，提供打字机流式体验。
 
