@@ -38,23 +38,20 @@ class MemoryManager:
             embeddings=embeddings
         )
 
-    def search_memory(self, query: str, top_k: int = 3) -> list[str]:
-        """根据用户的提问，检索最相关的 k 条记忆"""
+    def search_memory(self, query: str, top_k: int = 3) -> tuple[list[str], list[float]]:
+        """根据用户的提问，检索最相关的 k 条记忆，返回 (文档列表, 距离列表)"""
         if self.collection.count() == 0:
-            return []
-
+            return [], []
         query_embedding = get_embeddings([query])
         if not query_embedding or not query_embedding[0]:
-            return []
-
+            return [], []
         results = self.collection.query(
             query_embeddings=query_embedding,
             n_results=top_k
         )
-
         if results and results['documents']:
-            return results['documents'][0]
-        return []
+            return results['documents'][0], results['distances'][0]
+        return [], []
 
     def get_all_memories(self) -> list[str]:
         """获取所有记忆（备用，后续 /memory 指令会用到）"""
@@ -113,18 +110,30 @@ class MemoryManager:
         added = 0
         skipped = 0
         for fact in new_facts:
-            existing = self.search_memory(fact, top_k=1)
-            if existing and self._is_similar(fact, existing[0]):
+            existing_docs, existing_dists = self.search_memory(fact, top_k=1)
+            if existing_docs and self._is_similar(fact, existing_docs[0], existing_dists[0]):
                 skipped += 1
                 continue
             self.add_memory(fact)
             added += 1
-
         print(f"\n🧠 [记忆] 提取完成：新增 {added} 条，去重跳过 {skipped} 条。")
 
     @staticmethod
-    def _is_similar(new_fact: str, existing_fact: str) -> bool:
-        """简单的去重判断"""
+    def _is_similar(new_fact: str, existing_fact: str, distance: float | None = None) -> bool:
+        """去重判断：字符串包含 + 向量相似度双重防线"""
+        # 快速路径：字符串包含
         if new_fact.strip() in existing_fact.strip() or existing_fact.strip() in new_fact.strip():
             return True
+        # 高级路径：向量余弦距离（集合已配置 cosine space，distance = 1 - similarity）
+        # distance < 0.3 等价于 similarity > 0.7
+        if distance is not None and distance < 0.3:
+            return True
         return False
+
+    def clear_all_memories(self):
+        """彻底清空长期记忆向量库"""
+        self.client.delete_collection("long_term_memory")
+        self.collection = self.client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"}
+        )

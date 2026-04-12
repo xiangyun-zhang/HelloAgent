@@ -100,6 +100,24 @@ def main():
                     print("\n已取消。")
                 continue
 
+            if user_input.lower() == "/memory":
+                print("\n🧠 当前长期记忆库：")
+                all_mem = memory_manager.get_all_memories()
+                if not all_mem:
+                    print(" (空空如也)")
+                for i, m in enumerate(all_mem, 1):
+                    print(f" {i}. {m}")
+                continue
+
+            if user_input.lower() == "/clearmemory":
+                confirm = input("⚠️ 确定要清空所有长期记忆吗？此操作不可逆！(y/N): ").strip().lower()
+                if confirm == 'y':
+                    memory_manager.clear_all_memories()
+                    print("\n🗑️ 长期记忆已彻底抹除。")
+                else:
+                    print("\n已取消。")
+                continue
+
             if not user_input:
                 continue
 
@@ -107,6 +125,16 @@ def main():
             save_message(session_id, "user", user_input)
 
             chat_history.append({"role": "user", "content": user_input})
+
+            # =============================================
+            # 长期记忆动态检索与注入
+            # 根据当前用户输入，从向量库拉取相关记忆拼接到 System Prompt
+            # =============================================
+            retrieved_memories, _ = memory_manager.search_memory(user_input, top_k=3)
+            dynamic_system_prompt = system_prompt
+            if retrieved_memories:
+                memory_context = "\n\n【用户相关的长期记忆】\n" + "\n".join(f"- {m}" for m in retrieved_memories)
+                dynamic_system_prompt += memory_context
 
             # =============================================
             # 工具调用循环（ReAct 模式）
@@ -118,7 +146,7 @@ def main():
             final_answer = None
 
             while tool_iteration < MAX_TOOL_ITERATIONS:
-                messages_to_send = [{"role": "system", "content": system_prompt}] + chat_history
+                messages_to_send = [{"role": "system", "content": dynamic_system_prompt}] + chat_history
                 response = chat(messages_to_send)
 
                 # 检测回复中是否包含工具调用
