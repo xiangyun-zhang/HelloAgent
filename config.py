@@ -11,7 +11,6 @@ def _load_from_example(key: str) -> str | None:
     example_path = ".env.example"
     if not os.path.exists(example_path):
         return None
-    
     with open(example_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -34,12 +33,12 @@ def _get_config(key: str, required: bool = False) -> tuple[str | None, bool]:
     value = os.getenv(key)
     if value is not None:
         return value, False
-    
+
     # 2. 尝试从 .env.example 获取默认值
     example_val = _load_from_example(key)
     if example_val is not None:
         return example_val, True
-    
+
     # 3. 都没有
     return None, False
 
@@ -57,15 +56,19 @@ MAX_HISTORY_ROUNDS = int(max_history_rounds) if max_history_rounds else 10
 # 友好提示：哪些配置使用了默认值
 # ==========================================
 _example_warnings = []
-if base_used_example: _example_warnings.append(f"AGENT_BASE_URL = {BASE_URL}")
-if model_used_example: _example_warnings.append(f"AGENT_MODEL = {MODEL_NAME}")
-if name_used_example: _example_warnings.append(f"AGENT_NAME = {AGENT_NAME}")
-if max_history_rounds_example: _example_warnings.append(f"MAX_HISTORY_ROUNDS = {MAX_HISTORY_ROUNDS}")
+if base_used_example:
+    _example_warnings.append(f"AGENT_BASE_URL = {BASE_URL}")
+if model_used_example:
+    _example_warnings.append(f"AGENT_MODEL = {MODEL_NAME}")
+if name_used_example:
+    _example_warnings.append(f"AGENT_NAME = {AGENT_NAME}")
+if max_history_rounds_example:
+    _example_warnings.append(f"MAX_HISTORY_ROUNDS = {MAX_HISTORY_ROUNDS}")
 
 if _example_warnings:
     print("\n[提示] 以下配置未在 .env 中找到，已自动使用 .env.example 中的默认值：")
     for w in _example_warnings:
-        print(f"       - {w}")
+        print(f" - {w}")
     print()
 
 # ==========================================

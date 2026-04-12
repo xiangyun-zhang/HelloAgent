@@ -1,3 +1,4 @@
+import io, contextlib, threading, traceback, builtins
 import ast
 import os
 import subprocess
@@ -150,3 +151,59 @@ def run_python_code(code: str, timeout: int = 10) -> str:
         # 无论成功失败，清理临时脚本
         if os.path.exists(script_path):
             os.remove(script_path)
+
+class Sandbox:
+    """持久化沙箱：跨多次 execute() 调用保持变量状态（模拟 Jupyter）"""
+    def __init__(self):
+        _original_open = builtins.open
+
+        def _utf8_open(file, mode='r', *args, encoding=None, **kwargs):
+            """默认使用 UTF-8 编码的 open 包装器"""
+            if encoding is None and ('b' not in mode):
+                encoding = 'utf-8'
+            return _original_open(file, mode, *args, encoding=encoding, **kwargs)
+
+        self._namespace: dict = {'open': _utf8_open}
+
+    def execute(self, code: str, timeout: int = 10) -> str:
+        block_reason = _check_unsafe_ast(code)
+        if block_reason:
+            return f"[Error] 代码安全拦截：{block_reason}，执行已取消。"
+        os.makedirs(WORKSPACE_DIR, exist_ok=True)
+        code = _auto_print_last_expr(code)
+        output_buf = io.StringIO()
+        exec_error = [None]
+        def _run():
+            try:
+                old_cwd = os.getcwd()
+                os.chdir(WORKSPACE_DIR)
+                try:
+                    with contextlib.redirect_stdout(output_buf):
+                        with contextlib.redirect_stderr(output_buf):
+                            exec(compile(code, "<sandbox>", "exec"), self._namespace)
+                finally:
+                    os.chdir(old_cwd)
+            except Exception:
+                exec_error[0] = traceback.format_exc()
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        if thread.is_alive():
+            return f"[Error] 代码执行超时（超过 {timeout} 秒），已被强制终止。请检查是否有死循环。"
+        if exec_error[0]:
+            return f"[Error]\n{exec_error[0]}"
+        output = output_buf.getvalue()
+        if not output.strip():
+            return "[Success] 代码执行成功（无打印输出）。"
+        return output
+
+    def reset(self):
+        _original_open = builtins.open
+
+        def _utf8_open(file, mode='r', *args, encoding=None, **kwargs):
+            if encoding is None and ('b' not in mode):
+                encoding = 'utf-8'
+            return _original_open(file, mode, *args, encoding=encoding, **kwargs)
+
+        self._namespace.clear()
+        self._namespace['open'] = _utf8_open

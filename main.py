@@ -1,8 +1,8 @@
 import os
-import re
 
 from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from llm_client import chat
+from sandbox.executor import Sandbox
 from tools import PythonTool, ToolRegistry
 
 MAX_TOOL_ITERATIONS = 5  # 防止 Agent 陷入无限调用循环
@@ -74,6 +74,8 @@ def main():
             # 每次用户提问后，可能需要多轮 工具调用→解读 循环
             # =============================================
             tool_iteration = 0
+            sandbox = Sandbox()
+            registry.bind_sandbox(sandbox)
             final_answer = None
 
             while tool_iteration < MAX_TOOL_ITERATIONS:
