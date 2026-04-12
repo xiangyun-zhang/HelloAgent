@@ -85,7 +85,7 @@ def main():
                     print(f"\n🤖 {AGENT_NAME} (思考中):", flush=True)
                     print(response)
 
-                    trigger_count = sum(1 for name in registry._tools if f"```{name}" in response)
+                    trigger_count = response.count(f"```run_python")
                     print(f"\n⚙️  [系统] 检测到 {trigger_count} 个工具执行请求，正在沙箱运行...")
 
                     full_results = registry.run(response)
@@ -107,8 +107,8 @@ def main():
                         feedback_msg = (
                             f"代码已在沙箱中执行完毕，返回结果如下：\n"
                             f"{full_results}\n\n"
-                            f"请根据以上结果，用自然语言回答用户的原始问题。"
-                            f"不要再次输出代码块，也不要复述执行结果，直接用自然语言回答。"
+                            f"如果任务已全部完成，请用自然语言总结回答用户。"
+                            f"如果还有未完成的步骤，请继续使用 run_python 执行。"
                         )
 
                     chat_history.append({"role": "user", "content": feedback_msg})

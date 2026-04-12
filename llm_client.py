@@ -14,6 +14,7 @@ def chat(messages: list) -> str:
             model=MODEL_NAME,
             messages=messages,
             temperature=0.7,
+            max_tokens=4096,
         )
         return response.choices[0].message.content
     except Exception as e:

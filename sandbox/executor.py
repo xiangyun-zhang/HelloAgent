@@ -1,7 +1,6 @@
-import sys
 import ast
-import subprocess
 import os
+import subprocess
 import uuid
 
 WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "workspace")
@@ -53,24 +52,6 @@ def _check_unsafe_ast(code: str) -> str | None:
         if func_path and func_path in UNSAFE_ATTRS:
             return f"禁止调用危险模块方法: {func_path}"
 
-        # 检查 C：拦截文件写入
-        if isinstance(node.func, ast.Name) and node.func.id == "open":
-            mode = None
-            
-            # 看位置参数 (第2个参数)
-            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                mode = node.args[1].value
-            # 看关键字参数
-            else:
-                for kw in node.keywords:
-                    if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-                        mode = kw.value.value
-                        break
-            
-            # 判断 mode 里有没有写权限 ('w', 'a', 'x' 等)
-            if isinstance(mode, str) and any(m in mode for m in ['w', 'a', 'x']):
-                return f"禁止使用 open() 进行文件写入/追加操作 (检测到 mode='{mode}')"
-
     # 3. 全部放行
     return None
 
@@ -97,10 +78,16 @@ def _auto_print_last_expr(code: str) -> str:
     
     # 用 AST 判断最后一行是否为合法表达式（而非语句）
     try:
-        ast.parse(last_line, mode="eval")
-        lines[-1] = f"print({last_line})"
-        return "\n".join(lines)
+        tree = ast.parse(last_line, mode="eval")
+        # 只对简单变量名自动包裹 print，避免副作用调用（如 file.write）被误包裹
+        if isinstance(tree.body, ast.Name):
+            original_last_line = lines[-1]
+            indent = original_last_line[:len(original_last_line) - len(original_last_line.lstrip())]
+            lines[-1] = f"{indent}print({last_line})"
+            code =  "\n".join(lines)
     except SyntaxError:
+        pass
+    finally:
         return code
 
 
@@ -151,7 +138,7 @@ def run_python_code(code: str, timeout: int = 10) -> str:
             output += f"\n[Error]\n{result.stderr}"
 
         if not output.strip():
-            output = "代码执行成功，但没有任何输出。"
+            output = "[Success] 代码执行成功（无打印输出）。"
 
         return output
 

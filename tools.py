@@ -41,24 +41,25 @@ class PythonTool(BaseTool):
     def execute(self, llm_response: str) -> str:
         # 1. 提取属于自己管的代码块
         code_blocks = re.findall(r"```run_python\n(.*?)```", llm_response, re.DOTALL)
+
+        # 如果闭合格式没匹配到，但存在标记，尝试提取未闭合的代码块
+        if not code_blocks and "```run_python" in llm_response:
+            code_blocks = re.findall(r"```run_python\n(.*)", llm_response, re.DOTALL)
+
         if not code_blocks:
             return ""
 
-        execution_results = []
-        # 2. 遍历执行，处理打印和结果转换
-        for i, code in enumerate(code_blocks, 1):
-            print(f" ▶ 执行中 ({i}/{len(code_blocks)})...", end="")
-            result = run_python_code(code)
-
-            # 如果没有报错，且返回 "None"，说明是单纯的 print 语句
-            if result == "None":
-                result = "执行成功（无返回值）"
-
-            # 判断是否有报错，打印不同的状态图标
-            is_error = "[Error]" in result
-            print(" ❌" if is_error else " ✅")
-
-            execution_results.append(f"[执行结果 #{i}]\n{result}")
+        # 2. 合并所有代码块为一次执行（保证进程内变量共享）
+        combined_code = "\n\n".join(code_blocks)
+        print(f" ▶ 执行中 (共 {len(code_blocks)} 个代码块)...", end="")
+        result = run_python_code(combined_code)
+        
+        if result == "None":
+            result = "执行成功（无返回值）"
+            
+        is_error = "[Error]" in result
+        print(" ❌" if is_error else " ✅")
+        execution_results = [f"[执行结果 #1]\n{result}"]
 
         # 3. 返回最终拼接好的长字符串
         return "\n\n".join(execution_results)
