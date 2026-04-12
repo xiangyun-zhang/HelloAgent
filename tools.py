@@ -73,6 +73,12 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, BaseTool] = {}
 
+    @staticmethod
+    # ✅ 新增：兼容模型"偷懒"写法
+    def _normalize_response(response: str) -> str:
+        """python → run_python"""
+        return response.replace("```python", "```run_python")
+
     def register(self, tool: BaseTool):
         """雇佣工具，登记在册"""
         self._tools[tool.name] = tool
@@ -84,17 +90,19 @@ class ToolRegistry:
 
     def needs_to_run(self, llm_response: str) -> bool:
         """检查大模型的回复里，有没有需要调用工具的标记"""
+        response = self._normalize_response(llm_response)
         for name in self._tools:
-            if f"```{name}" in llm_response:
+            if f"```{name}" in response:
                 return True
         return False
 
     def run(self, llm_response: str) -> str:
         """统一调度：找出需要干活的工具，让它们干活，收集结果"""
+        response = self._normalize_response(llm_response)
         final_results = []
         for name, tool in self._tools.items():
-            if f"```{name}" in llm_response:
-                res = tool.execute(llm_response)
+            if f"```{name}" in response:
+                res = tool.execute(response)
                 if res:
                     final_results.append(res)
         return "\n\n".join(final_results)

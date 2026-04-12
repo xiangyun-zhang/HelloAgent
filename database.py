@@ -36,17 +36,6 @@ def save_message(session_id: str, role: str, content: str):
         )
         conn.commit()
 
-def load_recent_messages(session_id: str, limit: int = 10) -> list[dict]:
-    """加载某个会话最近的 N 条消息，按时间正序排列（拼接到 prompt 用）"""
-    with _get_conn() as conn:
-        cursor = conn.execute(
-            "SELECT role, content FROM chat_history WHERE session_id = ? ORDER BY id DESC LIMIT ?",
-            (session_id, limit)
-        )
-        # 查出来是倒序的，需要反转成正序
-        rows = cursor.fetchall()
-        return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
-
 def get_history_list(limit: int = 5) -> list[str]:
     """获取最近几次会话的摘要，用于 /history 命令展示"""
     with _get_conn() as conn:
@@ -69,11 +58,19 @@ def get_history_list(limit: int = 5) -> list[str]:
             result.append(f"[{row['start_time']}] 会话 {row['session_id'][:8]}... | 共{row['msg_count']}条 | 首句: {summary}")
         return result
 
-def get_latest_session_id() -> str | None:
-    """获取最近一次会话的 session_id"""
+def load_global_recent_messages(limit: int = 20) -> list[dict]:
+    """跨所有会话加载最近的 N 条消息，用于启动时恢复上下文"""
     with _get_conn() as conn:
         cursor = conn.execute(
-            "SELECT session_id FROM chat_history ORDER BY id DESC LIMIT 1"
+            "SELECT role, content FROM chat_history ORDER BY id DESC LIMIT ?",
+            (limit,)
         )
-        row = cursor.fetchone()
-        return row["session_id"] if row else None
+        rows = cursor.fetchall()
+        return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
+
+
+def clear_all_history():
+    """清空所有聊天记录"""
+    with _get_conn() as conn:
+        conn.execute("DELETE FROM chat_history")
+        conn.commit()

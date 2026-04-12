@@ -1,8 +1,8 @@
 import os
 import uuid
 
-from database import init_db, save_message, load_recent_messages, get_history_list, get_latest_session_id
 from config import AGENT_NAME, MAX_HISTORY_ROUNDS
+from database import init_db, save_message, get_history_list, clear_all_history, load_global_recent_messages
 from llm_client import chat
 from sandbox.executor import Sandbox
 from tools import PythonTool, ToolRegistry
@@ -57,14 +57,11 @@ def main():
     print("-" * 40)
 
     chat_history = []
-
-    # 启动时，从上一次会话中加载历史记忆作为上下文
-    last_session = get_latest_session_id()
-    if last_session:
-        history = load_recent_messages(last_session, limit=10)
-        if history:
-            chat_history.extend(history)
-            print(f"\n📂 已从上次会话中恢复了 {len(history)} 条历史记录。")
+    # 跨所有会话加载历史记忆
+    history = load_global_recent_messages(limit=MAX_HISTORY_ROUNDS * 2)
+    if history:
+        chat_history.extend(history)
+        print(f"\n📂 已恢复了 {len(history)} 条历史记录。")
 
     registry = ToolRegistry()
     registry.register(PythonTool())
@@ -79,9 +76,25 @@ def main():
 
             if user_input.lower() == "/history":
                 print("\n📜 近期会话记录：")
-                for record in get_history_list(limit=5):
+                for record in get_history_list(limit=MAX_HISTORY_ROUNDS // 2):
                     print(f"  - {record}")
                 continue
+
+            if user_input.lower() == "/clear":
+                chat_history.clear()
+                print(f"\n🧹 当前对话已清空，开始新对话。")
+                continue
+
+            if user_input.lower() == "/clearall":
+                confirm = input("⚠️ 确定要删除所有历史记录吗？(y/N): ").strip().lower()
+                if confirm == 'y':
+                    clear_all_history()
+                    chat_history.clear()
+                    print("\n🗑️ 所有历史记录已彻底清除。")
+                else:
+                    print("\n已取消。")
+                continue
+
 
             if not user_input:
                 continue
@@ -109,7 +122,7 @@ def main():
                     print(f"\n🤖 {AGENT_NAME} (思考中):", flush=True)
                     print(response)
 
-                    trigger_count = response.count(f"```run_python")
+                    trigger_count = response.count(f"```run_python") + response.count(f"```python")
                     print(f"\n⚙️  [系统] 检测到 {trigger_count} 个工具执行请求，正在沙箱运行...")
 
                     full_results = registry.run(response)
@@ -160,7 +173,7 @@ def main():
 
             # 对话历史裁剪（保留恢复的历史 + 当前会话的最近几轮）
             # 如果有恢复历史（10条），至少保留 10 + 当前 10 轮
-            history_budget = 10 if last_session else 0
+            history_budget = len(history)
             max_messages = history_budget + MAX_HISTORY_ROUNDS * 2
             if len(chat_history) > max_messages:
                 chat_history = chat_history[-max_messages:]
