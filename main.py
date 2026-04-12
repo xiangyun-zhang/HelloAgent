@@ -1,5 +1,7 @@
 import os
+import uuid
 
+from database import init_db, save_message, load_recent_messages, get_history_list, get_latest_session_id
 from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from llm_client import chat
 from sandbox.executor import Sandbox
@@ -39,6 +41,9 @@ def load_prompts_from_dir(dir_path: str) -> str:
 
 
 def main():
+    init_db()  # 确保表存在
+    session_id = str(uuid.uuid4()) # 给本次启动生成一个唯一会话ID
+
     print("正在加载配置...")
 
     raw_profile = load_txt("profile.md")
@@ -53,19 +58,36 @@ def main():
 
     chat_history = []
 
+    # 启动时，从上一次会话中加载历史记忆作为上下文
+    last_session = get_latest_session_id()
+    if last_session:
+        history = load_recent_messages(last_session, limit=10)
+        if history:
+            chat_history.extend(history)
+            print(f"\n📂 已从上次会话中恢复了 {len(history)} 条历史记录。")
+
     registry = ToolRegistry()
     registry.register(PythonTool())
 
     while True:
         try:
-            user_input = input("\n👤 你: ")
+            user_input = input("\n👤 你: ").strip()
 
-            if user_input.strip().lower() in ['quit', 'exit', 'q']:
+            if user_input.lower() in ['quit', 'exit', 'q']:
                 print(f"{AGENT_NAME}: 好的，随时待命！")
                 break
 
-            if not user_input.strip():
+            if user_input.lower() == "/history":
+                print("\n📜 近期会话记录：")
+                for record in get_history_list(limit=5):
+                    print(f"  - {record}")
                 continue
+
+            if not user_input:
+                continue
+
+            # 保存用户输入到数据库
+            save_message(session_id, "user", user_input)
 
             chat_history.append({"role": "user", "content": user_input})
 
@@ -129,11 +151,17 @@ def main():
             if final_answer:
                 print(f"\n🤖 {AGENT_NAME}: {final_answer}")
                 chat_history.append({"role": "assistant", "content": final_answer})
+
+                # 保存助手回复到数据库
+                save_message(session_id, "assistant", final_answer)
+
             elif tool_iteration >= MAX_TOOL_ITERATIONS:
                 print(f"\n⚠️  [系统] {AGENT_NAME} 连续调用了 {MAX_TOOL_ITERATIONS} 次工具仍未得出结论，已强制停止。")
 
-            # 对话历史裁剪（防止 Token 超限）
-            max_messages = MAX_HISTORY_ROUNDS * 2
+            # 对话历史裁剪（保留恢复的历史 + 当前会话的最近几轮）
+            # 如果有恢复历史（10条），至少保留 10 + 当前 10 轮
+            history_budget = 10 if last_session else 0
+            max_messages = history_budget + MAX_HISTORY_ROUNDS * 2
             if len(chat_history) > max_messages:
                 chat_history = chat_history[-max_messages:]
 

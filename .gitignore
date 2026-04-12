@@ -15,5 +15,8 @@ Thumbs.db
 .env
 profile.md
 
-# 沙箱工作空间中创建的文件
+# 沙箱工作空间
 sandbox/workspace/*
+
+# 数据存放
+data/*

@@ -16,6 +16,8 @@
 
 ```text
 my_agent/
+├── data/                     # 数据库操作层（聊天记录持久化存取）
+│   └── .gitkeep
 ├── prompts/
 │   ├── 01_base_rules.md      # 框架级系统规则
 │   └── 02_tool_rules.md      # 工具调用与 ReAct 规则
@@ -24,12 +26,13 @@ my_agent/
 │   └── workspace/            # 沙箱工作目录（文件读写在此）
 │       └── .gitkeep
 ├── .env.example              # 环境变量模板
-├── profile.md.example        # 人设配置模板
-├── requirements.txt          # Python 依赖清单
+├── database.py               # 配置数据库
 ├── config.py                 # 配置加载与校验逻辑
 ├── llm_client.py             # 大模型 API 通信封装
-├── tools.py                  # 工具基类、注册表与 Python 执行工具
 ├── main.py                   # 程序主入口（命令行交互循环）
+├── profile.md.example        # 人设配置模板
+├── requirements.txt          # Python 依赖清单
+├── tools.py                  # 工具基类、注册表与 Python 执行工具
 └── README.md                 # 你正在看的这个文件
 ```
 
@@ -37,7 +40,7 @@ my_agent/
 
 ### 1. 环境要求
 
-- Python 3.10+（使用了 X | Y 类型语法）
+- Python 3.12+（使用了 X | Y 类型语法等）
 - 一个可用的大模型 API Key（推荐智谱 GLM-4-Flash，便宜好用）
 
 ### 2. 安装依赖
