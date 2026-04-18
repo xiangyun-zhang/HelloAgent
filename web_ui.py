@@ -57,6 +57,8 @@ def predict(message, history):
 
 demo = gr.ChatInterface(
     fn=predict,
+    chatbot=gr.Chatbot(type="messages"),
+    type="messages",
     title=f"💬 {AGENT_NAME} Web UI",
     description="底层大脑已就绪，当前为【拼接展示】模式。",
 )
