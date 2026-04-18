@@ -3,8 +3,8 @@ from config import AGENT_NAME, MAX_HISTORY_ROUNDS
 from database import init_db, save_message, load_global_recent_messages
 from llm_client import chat
 from memory import MemoryManager
-from sandbox.executor import Sandbox
-from tools import PythonTool, ToolRegistry
+from sandbox.executor import Sandbox, WORKSPACE_DIR
+from tools import PythonTool, ToolRegistry, FileSystemTool
 from utils import load_txt, load_prompts_from_dir
 
 MAX_TOOL_ITERATIONS = 5
@@ -24,6 +24,7 @@ class Agent:
         self.memory_manager = MemoryManager()
         self.registry = ToolRegistry()
         self.registry.register(PythonTool())
+        self.registry.register(FileSystemTool(WORKSPACE_DIR))
 
         self.on_status = lambda msg: None
 

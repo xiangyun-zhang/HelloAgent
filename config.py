@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 # 加载用户真实的 .env 配置（如果存在的话，不会覆盖已有的系统环境变量）
 load_dotenv()
 
+ALLOW_SELF_MODIFY = os.getenv("ALLOW_SELF_MODIFY", "false").lower() == "true"
+
 def _load_from_example(key: str) -> str | None:
     """
     私有方法：尝试从 .env.example 模板中读取默认值
