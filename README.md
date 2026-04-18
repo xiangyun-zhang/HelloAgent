@@ -2,6 +2,18 @@
 
 一个基于大模型 API 构建的本地私人助理。拒绝数据上传云端，绝对的数据隐私与控制权。
 
+## 📌 当前版本
+
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/xiangyun-zhang/HelloAgent/tree/v0.1.0)
+
+本项目遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 规范。
+
+- **主版本号（0）**：开发阶段，公共 API 尚未稳定。
+- **次版本号（1）**：每次完成里程碑功能（如 M7）或重大特性时递增。
+- **修订号（0）**：Bug 修复、文档更新或小幅优化时递增。
+
+当前版本 `v0.1.0` 对应里程碑 M1～M7.3 全部完成，核心功能稳定可用。
+
 ## ✨ 当前特性 (Milestone 7.3 稳定版)
 
 - **人设注入**：通过本地 `profile.md` 文件自定义助理性格与背景知识。
