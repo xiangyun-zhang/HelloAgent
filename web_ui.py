@@ -5,10 +5,17 @@ from database import clear_all_history, get_history_list
 
 agent = Agent()
 
+
 def predict(message, history):
-    # 处理内置命令
     msg = message.strip()
-    if msg.lower() in ["/clearall"]:
+
+    # 屏蔽终端退出指令
+    if msg.lower() in ["quit", "exit", "q"]:
+        yield "⚠️ 此命令仅适用于命令行终端，Web 界面请直接关闭浏览器标签页。"
+        return
+
+    # 处理其他内置命令
+    if msg.lower() == "/clearall":
         clear_all_history()
         agent.chat_history.clear()
         yield "🗑️ 所有历史记录已彻底清除。"
@@ -40,7 +47,7 @@ def predict(message, history):
         yield "🗑️ 长期记忆已彻底抹除。"
         return
 
-    # 普通对话：调用 agent.chat
+    # 普通对话
     status_logs = []
 
     def capture_status(msg):
